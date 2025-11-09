@@ -1,0 +1,399 @@
+<!DOCTYPE html>
+<html lang="ru" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <title>Admin panel</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+    <meta name="_csrf" th:content="${_csrf.token}"/>
+    <meta name="_csrf_header" th:content="${_csrf.headerName}"/>
+</head>
+<body>
+<nav class="navbar navbar-dark bg-dark">
+    <div class="container-fluid">
+        <span class="navbar-text text-white">
+            <strong th:text="${currentUser.username}"></strong>
+            with roles: <span th:text="${currentUser.authorities}"></span>
+        </span>
+        <a href="/logout" class="btn btn-outline-light btn-sm">Logout</a>
+    </div>
+</nav>
+
+<div class="container-fluid">
+    <div class="row">
+        <!-- Sidebar -->
+        <div class="col-2 bg-light vh-100 p-0">
+            <ul class="nav flex-column nav-pills p-2">
+                <li class="nav-item mb-2">
+                    <a class="nav-link active" href="/admin">Admin</a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link" href="/user">User</a>
+                </li>
+            </ul>
+        </div>
+
+        <!-- Main Content -->
+        <div class="col-10 mt-3">
+            <h2>Admin panel</h2>
+
+            <!-- Tabs -->
+            <ul class="nav nav-tabs mb-3" id="adminTabs" role="tablist">
+                <li class="nav-item">
+                    <button class="nav-link active" id="users-tab" data-bs-toggle="tab" data-bs-target="#usersTable"
+                            type="button">Users table</button>
+                </li>
+                <li class="nav-item">
+                    <button class="nav-link" id="newuser-tab" data-bs-toggle="tab" data-bs-target="#newUserForm"
+                            type="button">New User</button>
+                </li>
+            </ul>
+
+            <div class="tab-content">
+                <!-- Users table -->
+                <div class="tab-pane fade show active" id="usersTable">
+                    <h4>All users</h4>
+                    <div class="alert alert-info" id="loadingMessage">Loading users...</div>
+                    <div class="alert alert-danger d-none" id="errorMessage"></div>
+
+                    <table class="table table-striped align-middle d-none" id="usersTableElement">
+                        <thead>
+                        <tr>
+                            <th>ID</th>
+                            <th>Username</th>
+                            <th>Email</th>
+                            <th>Roles</th>
+                            <th>Actions</th>
+                        </tr>
+                        </thead>
+                        <tbody id="usersTableBody">
+                        </tbody>
+                    </table>
+                </div>
+
+                <!-- New user -->
+                <div class="tab-pane fade" id="newUserForm">
+                    <h4>Add new user</h4>
+                    <form id="createUserForm" class="w-50">
+                        <div class="mb-2">
+                            <label>Username</label>
+                            <input type="text" id="newUsername" class="form-control bg-warning-subtle" required>
+                        </div>
+                        <div class="mb-2">
+                            <label>Password</label>
+                            <input type="password" id="newPassword" class="form-control" required>
+                        </div>
+                        <div class="mb-2">
+                            <label>Email</label>
+                            <input type="email" id="newEmail" class="form-control" required>
+                        </div>
+                        <div class="mb-3">
+                            <label>Roles</label>
+                            <select id="newRoles" multiple class="form-select" required>
+                                <option value="ROLE_ADMIN">ADMIN</option>
+                                <option value="ROLE_USER">USER</option>
+                            </select>
+                        </div>
+                        <button type="submit" class="btn btn-success">Add new user</button>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Edit User Modal -->
+<div class="modal fade" id="editModal" tabindex="-1" aria-labelledby="editModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <form id="editUserForm">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="editModalLabel">Edit user</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <input type="hidden" id="editId">
+
+                    <div class="mb-2">
+                        <label>Username</label>
+                        <input type="text" id="editUsername" class="form-control" required>
+                    </div>
+                    <div class="mb-2">
+                        <label>Password</label>
+                        <input type="password" id="editPassword" class="form-control" placeholder="Leave empty to keep current password">
+                    </div>
+                    <div class="mb-2">
+                        <label>Email</label>
+                        <input type="email" id="editEmail" class="form-control" required>
+                    </div>
+                    <div class="mb-2">
+                        <label>Roles</label>
+                        <select id="editRoles" multiple class="form-select" required>
+                            <option value="ROLE_ADMIN">ADMIN</option>
+                            <option value="ROLE_USER">USER</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                    <button type="submit" class="btn btn-primary">Save changes</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+
+<script>
+    // CSRF token configuration
+    const csrfToken = document.querySelector('meta[name="_csrf"]').getAttribute('content');
+    const csrfHeader = document.querySelector('meta[name="_csrf_header"]').getAttribute('content');
+
+    // Common fetch options
+    const fetchOptions = {
+        headers: {
+            'Content-Type': 'application/json',
+            [csrfHeader]: csrfToken
+        }
+    };
+
+    // Load users on page load
+    document.addEventListener('DOMContentLoaded', function() {
+        loadUsers();
+        setupEventListeners();
+    });
+
+    function setupEventListeners() {
+        // Create user form
+        document.getElementById('createUserForm').addEventListener('submit', function(e) {
+            e.preventDefault();
+            createUser();
+        });
+
+        // Edit user form
+        document.getElementById('editUserForm').addEventListener('submit', function(e) {
+            e.preventDefault();
+            updateUser();
+        });
+    }
+
+    function loadUsers() {
+        fetch('/api/users')
+            .then(response => {
+                if (!response.ok) {
+                    throw new Error('Network response was not ok');
+                }
+                return response.json();
+            })
+            .then(users => {
+                displayUsers(users);
+            })
+            .catch(error => {
+                showError('Error loading users: ' + error.message);
+            });
+    }
+
+    function displayUsers(users) {
+        const tbody = document.getElementById('usersTableBody');
+        const table = document.getElementById('usersTableElement');
+        const loading = document.getElementById('loadingMessage');
+
+        loading.classList.add('d-none');
+        table.classList.remove('d-none');
+
+        tbody.innerHTML = '';
+
+        users.forEach(user => {
+            const row = document.createElement('tr');
+            row.innerHTML = `
+                <td>${user.id}</td>
+                <td>${user.username}</td>
+                <td>${user.email}</td>
+                <td>${user.roles.map(role => role.name).join(', ')}</td>
+                <td>
+                    <button type="button" class="btn btn-info btn-sm" onclick="openEditModal(${user.id})">
+                        Edit
+                    </button>
+                    <button type="button" class="btn btn-danger btn-sm" onclick="deleteUser(${user.id})">
+                        Delete
+                    </button>
+                </td>
+            `;
+            tbody.appendChild(row);
+        });
+    }
+
+    function createUser() {
+        const userData = {
+            username: document.getElementById('newUsername').value,
+            password: document.getElementById('newPassword').value,
+            email: document.getElementById('newEmail').value,
+            roles: Array.from(document.getElementById('newRoles').selectedOptions)
+                       .map(option => option.value) // Отправляем массив строк
+        };
+
+        // Валидация
+        if (!userData.username || !userData.password || !userData.email || userData.roles.length === 0) {
+            showError('Please fill all required fields');
+            return;
+        }
+
+        fetch('/api/users', {
+            method: 'POST',
+            ...fetchOptions,
+            body: JSON.stringify(userData)
+        })
+        .then(response => {
+            if (!response.ok) {
+                return response.text().then(text => {
+                    throw new Error(text || 'Failed to create user');
+                });
+            }
+            return response.json();
+        })
+        .then(() => {
+            // Reset form and show success
+            document.getElementById('createUserForm').reset();
+            loadUsers();
+
+            // Switch to users table tab
+            new bootstrap.Tab(document.getElementById('users-tab')).show();
+
+            showTemporaryMessage('User created successfully!', 'success');
+        })
+        .catch(error => {
+            showError('Error creating user: ' + error.message);
+        });
+    }
+
+    function openEditModal(userId) {
+        fetch(`/api/users/${userId}`)
+            .then(response => {
+                if (!response.ok) {
+                    throw new Error('User not found');
+                }
+                return response.json();
+            })
+            .then(user => {
+                document.getElementById('editId').value = user.id;
+                document.getElementById('editUsername').value = user.username;
+                document.getElementById('editEmail').value = user.email;
+
+                // Set roles
+                const rolesSelect = document.getElementById('editRoles');
+                const userRoles = user.roles.map(role => role.name);
+
+                Array.from(rolesSelect.options).forEach(option => {
+                    option.selected = userRoles.includes(option.value);
+                });
+
+                // Clear password field
+                document.getElementById('editPassword').value = '';
+
+                // Show modal
+                new bootstrap.Modal(document.getElementById('editModal')).show();
+            })
+            .catch(error => {
+                showError('Error loading user: ' + error.message);
+            });
+    }
+
+    function updateUser() {
+        const userId = document.getElementById('editId').value;
+        const userData = {
+            username: document.getElementById('editUsername').value,
+            email: document.getElementById('editEmail').value,
+            roles: Array.from(document.getElementById('editRoles').selectedOptions)
+                       .map(option => option.value) // Отправляем массив строк
+        };
+
+        // Валидация
+        if (!userData.username || !userData.email || userData.roles.length === 0) {
+            showError('Please fill all required fields');
+            return;
+        }
+
+        // Include password only if provided
+        const password = document.getElementById('editPassword').value;
+        if (password) {
+            userData.password = password;
+        }
+
+        fetch(`/api/users/${userId}`, {
+            method: 'PUT',
+            ...fetchOptions,
+            body: JSON.stringify(userData)
+        })
+        .then(response => {
+            if (!response.ok) {
+                return response.text().then(text => {
+                    throw new Error(text || 'Failed to update user');
+                });
+            }
+            return response.json();
+        })
+        .then(() => {
+            // Close modal and refresh data
+            bootstrap.Modal.getInstance(document.getElementById('editModal')).hide();
+            loadUsers();
+            showTemporaryMessage('User updated successfully!', 'success');
+        })
+        .catch(error => {
+            showError('Error updating user: ' + error.message);
+        });
+    }
+
+    function deleteUser(userId) {
+        if (!confirm('Are you sure you want to delete this user?')) {
+            return;
+        }
+
+        fetch(`/api/users/${userId}`, {
+            method: 'DELETE',
+            ...fetchOptions
+        })
+        .then(response => {
+            if (!response.ok) {
+                throw new Error('Failed to delete user');
+            }
+            loadUsers();
+            showTemporaryMessage('User deleted successfully!', 'success');
+        })
+        .catch(error => {
+            showError('Error deleting user: ' + error.message);
+        });
+    }
+
+    function showError(message) {
+        const errorDiv = document.getElementById('errorMessage');
+        errorDiv.textContent = message;
+        errorDiv.classList.remove('d-none');
+
+        // Hide error after 5 seconds
+        setTimeout(() => {
+            errorDiv.classList.add('d-none');
+        }, 5000);
+    }
+
+    function showTemporaryMessage(message, type) {
+        const alertClass = type === 'success' ? 'alert-success' : 'alert-danger';
+        const messageDiv = document.createElement('div');
+        messageDiv.className = `alert ${alertClass} alert-dismissible fade show position-fixed`;
+        messageDiv.style.cssText = 'top: 20px; right: 20px; z-index: 1050; min-width: 300px;';
+        messageDiv.innerHTML = `
+            ${message}
+            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+        `;
+
+        document.body.appendChild(messageDiv);
+
+        // Auto remove after 3 seconds
+        setTimeout(() => {
+            if (messageDiv.parentElement) {
+                messageDiv.remove();
+            }
+        }, 3000);
+    }
+</script>
+</body>
+</html>
