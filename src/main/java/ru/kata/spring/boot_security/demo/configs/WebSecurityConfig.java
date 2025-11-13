@@ -7,18 +7,18 @@ import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
 import org.springframework.security.config.annotation.web.configuration.WebSecurityConfigurerAdapter;
 import org.springframework.security.crypto.password.PasswordEncoder;
-import ru.kata.spring.boot_security.demo.configs.SuccessUserHandler;
-import ru.kata.spring.boot_security.demo.servicec.UserService;
+import org.springframework.security.web.csrf.CookieCsrfTokenRepository;
+import ru.kata.spring.boot_security.demo.servicec.UserDetailsServiceImpl;
 
 @Configuration
 @EnableWebSecurity
 public class WebSecurityConfig extends WebSecurityConfigurerAdapter {
     private final SuccessUserHandler successUserHandler;
-    private final UserService userDetailsService;
+    private final UserDetailsServiceImpl userDetailsService;
     private final PasswordEncoder passwordEncoder;
 
     public WebSecurityConfig(SuccessUserHandler successUserHandler,
-                             UserService userDetailsService,
+                             UserDetailsServiceImpl userDetailsService,
                              PasswordEncoder passwordEncoder) {
         this.successUserHandler = successUserHandler;
         this.userDetailsService = userDetailsService;
@@ -29,9 +29,11 @@ public class WebSecurityConfig extends WebSecurityConfigurerAdapter {
     protected void configure(HttpSecurity http) throws Exception {
         http
                 .authorizeRequests()
-                .antMatchers("/", "/login").permitAll()
+                .antMatchers("/", "/login", "/error").permitAll()
                 .antMatchers("/user/**").hasAnyRole("USER", "ADMIN")
-                .antMatchers("/admin/**", "/api/**").hasRole("ADMIN")
+                .antMatchers("/admin/**").hasRole("ADMIN")
+                .antMatchers("/api/user/**").hasAnyRole("USER", "ADMIN")
+                .antMatchers("/api/admin/**").hasRole("ADMIN")
                 .anyRequest().authenticated()
                 .and()
                 .formLogin()
@@ -42,8 +44,10 @@ public class WebSecurityConfig extends WebSecurityConfigurerAdapter {
                 .logout()
                 .logoutSuccessUrl("/login?logout")
                 .permitAll()
-                .and();
-
+                .and()
+                .csrf()
+                .csrfTokenRepository(CookieCsrfTokenRepository.withHttpOnlyFalse()) // Включаем CSRF с Cookie
+                .ignoringAntMatchers("/api/**"); // Отключаем CSRF для API или оставляем включенным
     }
 
     @Autowired

@@ -6,7 +6,16 @@ import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
 
 @Configuration
 public class MvcConfig implements WebMvcConfigurer {
+
+    @Override
     public void addViewControllers(ViewControllerRegistry registry) {
+        // Простые GET маппинги на представления
+        registry.addViewController("/login").setViewName("login");
+        registry.addViewController("/admin").setViewName("admin");
         registry.addViewController("/user").setViewName("user");
+
+        // Можно добавить другие простые маппинги
+        registry.addViewController("/").setViewName("redirect:/login");
+        registry.addViewController("/error").setViewName("error");
     }
 }

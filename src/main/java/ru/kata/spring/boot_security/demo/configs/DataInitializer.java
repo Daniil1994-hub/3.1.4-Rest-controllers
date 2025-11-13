@@ -1,12 +1,12 @@
 package ru.kata.spring.boot_security.demo.configs;
 
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Component;
 import ru.kata.spring.boot_security.demo.models.Role;
 import ru.kata.spring.boot_security.demo.models.User;
 import ru.kata.spring.boot_security.demo.repositories.RoleRepository;
 import ru.kata.spring.boot_security.demo.repositories.UserRepository;
-import org.springframework.security.crypto.password.PasswordEncoder;
 
 import javax.annotation.PostConstruct;
 import java.util.Set;
@@ -37,7 +37,7 @@ public class DataInitializer {
             admin.setUsername("admin");
             admin.setPassword(passwordEncoder.encode("admin"));
             admin.setEmail("admin@mail.com");
-            admin.setRoles(Set.of(adminRole, userRole)); // Админ имеет обе роли
+            admin.setRoles(Set.of(adminRole, userRole));
             userRepository.save(admin);
             System.out.println("Created admin user: admin/admin");
         }
@@ -48,7 +48,7 @@ public class DataInitializer {
             user.setUsername("user");
             user.setPassword(passwordEncoder.encode("user"));
             user.setEmail("user@mail.com");
-            user.setRoles(Set.of(userRole)); // Обычный пользователь
+            user.setRoles(Set.of(userRole));
             userRepository.save(user);
             System.out.println("Created user: user/user");
         }

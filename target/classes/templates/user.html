@@ -1,27 +1,46 @@
 <!DOCTYPE html>
-<html lang="ru" xmlns:th="http://www.thymeleaf.org">
+<html lang="ru">
 <head>
     <meta charset="UTF-8">
     <title>User panel</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        .sidebar {
+            background-color: #f8f9fa;
+            height: 100vh;
+            padding: 0;
+        }
+        .nav-pills .nav-link.active {
+            background-color: #0d6efd;
+        }
+        .admin-link {
+            display: none; /* Скрываем по умолчанию */
+        }
+    </style>
 </head>
 <body>
 <nav class="navbar navbar-dark bg-dark">
     <div class="container-fluid">
         <span class="navbar-text text-white">
-            <strong th:text="${user.email}">user@mail.ru</strong>
-            with roles:
-            <span th:text="${user.roles}">USER</span>
+            <strong id="currentUserEmail">Loading...</strong>
+            with roles: <span id="currentUserRoles">Loading...</span>
         </span>
-        <a href="/logout" class="btn btn-outline-light btn-sm">Logout</a>
+        <form action="/logout" method="post" class="d-inline">
+            <input type="hidden" name="_csrf" th:value="${_csrf.token}" />
+            <button type="submit" class="btn btn-outline-light btn-sm">Logout</button>
+        </form>
     </div>
 </nav>
 
 <div class="container-fluid">
     <div class="row">
         <!-- Sidebar -->
-        <div class="col-2 bg-light vh-100 p-0">
+        <div class="col-2 sidebar">
             <ul class="nav flex-column nav-pills p-2">
+                <!-- Ссылка на админку будет показана только для админов -->
+                <li class="nav-item mb-2 admin-link">
+                    <a class="nav-link" href="/admin">Admin</a>
+                </li>
                 <li class="nav-item">
                     <a class="nav-link active" href="/user">User</a>
                 </li>
@@ -31,35 +50,74 @@
         <!-- Main Content -->
         <div class="col-10 mt-3">
             <h2>User panel</h2>
-            <ul class="nav nav-tabs mb-3">
-                <li class="nav-item">
-                    <span class="nav-link active">User information</span>
-                </li>
-            </ul>
-
-            <div>
-                <h4>About user</h4>
-                <table class="table table-striped w-75">
-                    <thead>
-                    <tr>
-                        <th>ID</th>
-                        <th>Username</th>
-                        <th>Role</th>
-                    </tr>
-                    </thead>
-                    <tbody>
-                    <tr>
-                        <td th:text="${user.id}">3</td>
-                        <td th:text="${user.username}">Username</td>
-                        <td th:text="${user.roles}">Role</td>
-                    </tr>
-                    </tbody>
-                </table>
+            <div id="userContent">
+                <div class="text-center">
+                    <div class="spinner-border" role="status">
+                        <span class="visually-hidden">Loading...</span>
+                    </div>
+                </div>
             </div>
         </div>
     </div>
 </div>
 
-<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        loadUserData();
+    });
+
+    async function loadUserData() {
+        try {
+            const response = await fetch('/api/user/current');
+            if (!response.ok) throw new Error('Failed to load user data');
+
+            const user = await response.json();
+            renderUserPage(user);
+            checkAdminAccess(user); // Проверяем права админа
+        } catch (error) {
+            document.getElementById('userContent').innerHTML = `
+                <div class="alert alert-danger">Error loading user data: ${error.message}</div>
+            `;
+        }
+    }
+
+    function renderUserPage(user) {
+        document.getElementById('currentUserEmail').textContent = user.email;
+        document.getElementById('currentUserRoles').textContent =
+            Array.from(user.roles).map(role => role.replace('ROLE_', '')).join(', ');
+
+        document.getElementById('userContent').innerHTML = `
+            <h4>About user</h4>
+            <table class="table table-striped w-75">
+                <thead>
+                    <tr>
+                        <th>ID</th>
+                        <th>Username</th>
+                        <th>Email</th>
+                        <th>Roles</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td>${user.id}</td>
+                        <td>${user.username}</td>
+                        <td>${user.email}</td>
+                        <td>${Array.from(user.roles).map(role => role.replace('ROLE_', '')).join(', ')}</td>
+                    </tr>
+                </tbody>
+            </table>
+        `;
+    }
+
+    // Функция проверки прав администратора
+    function checkAdminAccess(user) {
+        const isAdmin = user.roles.includes('ROLE_ADMIN');
+        const adminLink = document.querySelector('.admin-link');
+
+        if (isAdmin && adminLink) {
+            adminLink.style.display = 'block'; // Показываем ссылку для админов
+        }
+    }
+</script>
 </body>
 </html>
